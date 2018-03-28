@@ -73,8 +73,8 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
-
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+import android.widget.Toast;
+public class MapsActivity extends FragmentActivity {
 
     private static final String TAG = MapsActivity.class.getSimpleName();
     private PlaceDetectionClient mPlaceDetectionClient;
@@ -84,7 +84,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        setContentView(R.layout.activity_maps);
+       super.onCreate(savedInstanceState);
+       setContentView(R.layout.activity_maps);
         mPlaceDetectionClient = Places.getPlaceDetectionClient(this, null);
         userConsent();
         userlocation();
@@ -100,24 +101,74 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
 
-        // Add a marker in Sydney and move the camera
-        LatLng sydney = new LatLng(-34, 151);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
-    }
 
     public void userConsent(){
+/*
+         * Request location permission, so that we can get the location of the
+         * device. The result of the permission request is handled by a callback,
+         * onRequestPermissionsResult.
+         */
+        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            mLocationPermissionGranted = true;
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+        }
+    }
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String permissions[],
+                                           @NonNull int[] grantResults) {
+        mLocationPermissionGranted = false;
+        switch (requestCode) {
+            case PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    mLocationPermissionGranted = true;
+                }
+            }
+        }
 
     }
 
     public void userlocation(){
 
+        if (mLocationPermissionGranted) {
+            // Get the likely places - that is, the businesses and other points of interest that
+            // are the best match for the device's current location.
+            @SuppressWarnings("MissingPermission") final
+            Task<PlaceLikelihoodBufferResponse> placeResult =
+                    mPlaceDetectionClient.getCurrentPlace(null);
+            placeResult.addOnCompleteListener
+                    (new OnCompleteListener<PlaceLikelihoodBufferResponse>() {
+                        @Override
+                        public void onComplete(@NonNull Task<PlaceLikelihoodBufferResponse> task) {
+                            if (task.isSuccessful() && task.getResult() != null) {
+                                PlaceLikelihoodBufferResponse likelyPlaces = task.getResult();
+
+                                LikelyPlaceName = (String) likelyPlaces.get(0).getPlace().getName();
+
+                                // Release the place likelihood buffer, to avoid memory leaks.
+                                likelyPlaces.release();
+
+
+                            } else {
+                                Log.e(TAG, "Exception: %s", task.getException());
+                            }
+                        }
+                    });
+        } else {
+            // The user has not granted permission.
+            Log.i(TAG, "The user did not grant location permission.");
+            userConsent();
+        }
     }
      public void showlocation(){
-
+         Toast.makeText(this, LikelyPlaceName,
+                 Toast.LENGTH_LONG).show();
      }
 }
